@@ -96,3 +96,22 @@ namespace WindowsService
         }
     }
 }
+
+
+/*
+ int counter = 0;
+            string line;
+
+            System.IO.StreamReader file = new System.IO.StreamReader(@"C:\temp\test.txt");
+            while ((line = file.ReadLine()) != null)
+            {
+                Console.WriteLine(line);
+                counter++;
+            }
+
+            file.Close();
+            System.Console.WriteLine("The are a {0} numbers of line", counter);
+            System.Console.ReadLine();
+ 
+ 
+ */
