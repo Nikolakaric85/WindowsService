@@ -1,16 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Diagnostics;
-using System.Linq;
-using System.ServiceProcess;
-using System.Text;
-using System.Timers;
-using System.Threading.Tasks;
-using System.IO;
-using System.Xml.Linq;
 using System.Data.SqlClient;
+using System.Diagnostics;
+using System.IO;
+using System.ServiceProcess;
+using System.Timers;
 
 namespace WindowsService
 {
@@ -19,27 +13,37 @@ namespace WindowsService
         private readonly Timer timer;
         public MyWindowsService()
         {
-            
-            InitializeComponent();
-            timer = new Timer(1000) { AutoReset = true };
-            timer.Elapsed += Checking;
-        }
 
-        public void Checking(object sender, ElapsedEventArgs e)
-        {
-            FileSystemWatcher fileSystemWatcher = new FileSystemWatcher(@"C:\temp");
-            fileSystemWatcher.EnableRaisingEvents = true;
-            fileSystemWatcher.Created += FileSystemWatcher_Created;
-            
+            InitializeComponent();
+            timer = new Timer();
         }
 
         protected override void OnStart(string[] args)
         {
+            // Set up a timer that triggers every minute.
+
+            timer.Interval = 5000;
+            timer.Elapsed += new ElapsedEventHandler(this.Checking);
             timer.Start();
         }
 
+        public void Checking(object sender, ElapsedEventArgs e)
+        {
+            // FileSystemWatcher fileSystemWatcher = new FileSystemWatcher(@"\\192.168.2.254\Eurolog ICT\11. Software\Test_wsCoreda");
+            FileSystemWatcher fileSystemWatcher = new FileSystemWatcher(@"C:\temp");
+            fileSystemWatcher.EnableRaisingEvents = true;
+            fileSystemWatcher.Created += FileSystemWatcher_Created;
+            //string[] lines = new string[] { "Proverava temp folder " + DateTime.Now.ToString() };
+            //File.AppendAllLines(@"C:\temp\log.txt", lines);
+        }
+
+
+
         private void FileSystemWatcher_Created(object sender, FileSystemEventArgs e)
         {
+            //string[] lines = new string[] { "Proverava koliko puta poziva metodu   " + DateTime.Now.ToString() };
+            //File.AppendAllLines(@"C:\temp\log2.txt", lines);
+
             if (e.Name == "Test_ok.txt")
             {
                 try
@@ -49,122 +53,70 @@ namespace WindowsService
 
                     using (SqlConnection sqlConnection = new SqlConnection(conString))
                     {
-                        SqlCommand command = new SqlCommand(insertQuery, sqlConnection);
+                        using (SqlCommand command = new SqlCommand(insertQuery, sqlConnection))
+                        {
 
-                        command.Parameters.Add("@line1", SqlDbType.NVarChar);
-                        command.Parameters.Add("@line2", SqlDbType.NVarChar);
-                        sqlConnection.Open();
-                    
+                            command.Parameters.Add("@line1", SqlDbType.Char);
+                            command.Parameters.Add("@line2", SqlDbType.DateTime);
+                            sqlConnection.Open();
 
-                        
+                            EventLog.WriteEntry("Status konekcije je " + sqlConnection.State, EventLogEntryType.Warning);
 
-                   // EventLog.WriteEntry("Status konekcije je " + sqlConnection.State, EventLogEntryType.Information);
+                            string line;
+                            System.IO.StreamReader file = new System.IO.StreamReader(@"C:\temp\Test_ok.txt");
 
-                    string line;
-                    System.IO.StreamReader file = new System.IO.StreamReader(@"C:\temp\Test_ok.txt");
+                            while ((line = file.ReadLine()) != null)
+                            {
+                                command.Parameters["@line1"].Value = line;
+                                command.Parameters["@line2"].Value = DateTime.Now;
+                                command.ExecuteNonQuery();
+                                
+                            }
+                            command.Dispose();
+                            file.Close();
+                        }
 
-                        int counter = 0;
+                        sqlConnection.Close();
 
-                        // da se uradi da se nadje max counter pa onda for petlja pa da tako upise u bazu da ne bi bilo ponavljanja
+                        string destinationPath = @"C:\temp\OK\" + e.Name;
+                        File.Move(@"C:\temp\Test_ok.txt", destinationPath);
+                        EventLog.WriteEntry("Ubačen je fajl " + e.Name, EventLogEntryType.Warning);
 
-                    while ((line = file.ReadLine()) != null)
-                    {
-                        EventLog.WriteEntry("Ubačen je red " + line, EventLogEntryType.Information);
-                        command.Parameters["@line1"].Value = line;
-                        command.Parameters["@line2"].Value = DateTime.Now;
-
-                        command.ExecuteNonQuery();
-                            counter++;
-                    }
-                        EventLog.WriteEntry("Broj redova " + counter, EventLogEntryType.Warning);
-
-
-                        file.Close();
                     }
 
-                    string destinationPath = @"C:\temp\OK\" + e.Name;
-                    File.Move(@"C:\temp\Test_ok.txt", destinationPath);
-                    EventLog.WriteEntry("Ubačen je fajl " + e.Name, EventLogEntryType.Warning);
+                    // string destinationPath = @"\\192.168.2.254\Eurolog ICT\11. Soft
+
                 }
-                catch (Exception)
+                catch (Exception exp)
                 {
 
-                    //EventLog.WriteEntry("Nije prosao proces", EventLogEntryType.Error);
+                    EventLog.WriteEntry("Nije prosao proces - poruka " + exp.Message, EventLogEntryType.Error);
+                    EventLog.WriteEntry("Nije prosao proces - data " + exp.Data, EventLogEntryType.Error);
+                    EventLog.WriteEntry("Nije prosao proces - source " + exp.Source, EventLogEntryType.Error);
                 }
 
             }
             else
             {
-                try
-                {
-                    string destinationPath = @"C:\temp\Bad\" + DateTime.Now.ToString("dddd, dd MMMM yyyy, HH mm ss") + " " + e.Name;
-                    File.Move(@"C:\temp\" + e.Name, destinationPath);
-                    EventLog.WriteEntry("Neispravan fajl: " + e.Name, EventLogEntryType.Information);
-                }
-                catch (Exception)
-                {
-                    EventLog.WriteEntry("Nije prosao proces", EventLogEntryType.Error);
-                }
+                //    try
+                //    {
+                //        string destinationPath = @"C:\temp\Bad\" + DateTime.Now.ToString("dddd, dd MMMM yyyy, HH mm ss") + " " + e.Name;
+                //        File.Move(@"C:\temp\" + e.Name, destinationPath);
+                //        EventLog.WriteEntry("Neispravan fajl: " + e.Name, EventLogEntryType.Information);
+                //    }
+                //    catch (Exception)
+                //    {
+                //        EventLog.WriteEntry("Nije prosao proces", EventLogEntryType.Error);
+                //    }
 
             }
-
-
         }
 
         protected override void OnStop()
         {
-            EventLog.WriteEntry("Stojjj", EventLogEntryType.Information);
+            EventLog.WriteEntry("Stoj", EventLogEntryType.Information);
         }
     }
 }
 
 
-/*
-  if (e.Name == "Test_ok.txt")
-            {
-                try
-                {
-                    // string destinationPath = "C:\\temp\\OK\\note " + DateTime.Now.ToString("dddd, dd MMMM yyyy, HH mm ss") + ".xml";
-
-                    string line;
-
-                    List<string> myList = new List<string>();
-
-                    System.IO.StreamReader file = new System.IO.StreamReader(@"C:\temp\Test_ok.txt");
-
-                    while ((line = file.ReadLine()) != null)
-                    {
-                        EventLog.WriteEntry("Ubačen je red " + line, EventLogEntryType.Information);
-                        myList.Add(line);
-                    }
-
-                    File.WriteAllLines(@"C:\temp\OK\note.txt", myList);
-                    file.Close();
-
-                    string destinationPath = @"C:\temp\OK\" + e.Name;
-                    File.Move(@"C:\temp\Test_ok.txt", destinationPath);
-                    EventLog.WriteEntry("Ubačen je fajl " + e.Name, EventLogEntryType.Warning);
-                }
-                catch (Exception)
-                {
-
-                    //EventLog.WriteEntry("Nije prosao proces", EventLogEntryType.Error);
-                }
-
-            }
-            else
-            {
-                try
-                {
-                    string destinationPath = @"C:\temp\Bad\" + DateTime.Now.ToString("dddd, dd MMMM yyyy, HH mm ss") + " " + e.Name;
-                    File.Move(@"C:\temp\" + e.Name, destinationPath);
-                    EventLog.WriteEntry("Neispravan fajl: " + e.Name, EventLogEntryType.Information);
-                }
-                catch (Exception)
-                {
-                    EventLog.WriteEntry("Nije prosao proces", EventLogEntryType.Error);
-                }
-
-            }
- 
- */
